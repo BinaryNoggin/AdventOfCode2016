@@ -37,42 +37,49 @@ defmodule DayOne do
   def comprehend_direction("R" <> distance), do: {:right, String.to_integer(distance)}
   def comprehend_direction("L" <> distance), do: {:left, String.to_integer(distance)}
 
-  def find_second_visit(understood_steps) do
-    initial_position = {0, 0}
-    initial_heading = {0, 1}
-    visited_locations = MapSet.new([initial_position])
+  defmodule State do
+    defstruct position: {0,0}, heading: {0,1}, visited_locations: MapSet.new([{0,0}]), duplicate_location: :no_duplicate_location
+  end
 
-    {_, _, _, revisited_location} = Enum.reduce_while(understood_steps, {initial_position, initial_heading, visited_locations, :no_duplicate_location}, &step_until/2)
-    {revisited_location, {}}
+  def find_second_visit(understood_steps) do
+    Enum.reduce_while(understood_steps, %State{}, &step_until/2)
   end
 
   def follow_steps(understood_steps) do
-    initial_position = {0, 0}
-    initial_heading = {0, 1}
-    Enum.reduce(understood_steps, {initial_position, initial_heading}, &step/2)
+    Enum.reduce(understood_steps, %State{}, &step/2)
   end
 
-  def calculate_distance({position, _direction}) do
+  def calculate_distance(%State{position: position}) do
     Vector.manhattan_distance(position)
   end
 
-  def step_until(instruction, {current_position, current_heading, visited_locations, :no_duplicate_location}) do
-    {new_position, new_direction} = step(instruction, {current_position, current_heading})
-
+  def step_until(instruction, state = %State{duplicate_location: :no_duplicate_location, visited_locations: visited_locations}) do
+    %State{position: new_position, heading: new_direction} = step(instruction, state)
     location_match = Enum.find([new_position], :no_duplicate_location, &MapSet.member?(visited_locations, &1))
-
     new_visited_locations = MapSet.put(visited_locations, new_position)
-    {:cont, {new_position, new_direction, new_visited_locations, location_match}}
+
+    new_state = %State{state |
+      position: new_position,
+      heading: new_direction,
+      visited_locations: new_visited_locations,
+      duplicate_location: location_match
+    }
+
+    {:cont, new_state}
   end
 
-  def step_until(instruction, {current_position, current_heading, visited_locations, location}) do
-    {:halt, {location, {}, [], location}}
+  def step_until(instruction, state = %State{duplicate_location: location}) do
+    new_state = %State{state | position: location }
+    {:halt, state}
   end
 
-  def step({rotation, move}, {current_position, current_heading}) do
+  def step({rotation, move}, state = %State{position: current_position, heading: current_heading}) do
     changed_direction = Vector.rotate(current_heading, rotation)
 
-    {changed_direction |> new_position(move, current_position), changed_direction}
+    %State{state |
+      position: changed_direction |> new_position(move, current_position),
+      heading: changed_direction
+    }
   end
 
   def new_position(direction, move, position) do
@@ -101,5 +108,13 @@ defmodule DayOneTest do
 
   test "back to origin" do
     assert DayOne.walk("R2, R2, R2, R2") == 0
+  end
+
+  test "back to origin second visit" do
+    assert DayOne.second_visit_distance("R2, R2, R2, R2, R3") == 0
+  end
+
+  test "crossed path" do
+    assert DayOne.second_visit_distance("R8, R4, R4, R8") == 4
   end
 end
