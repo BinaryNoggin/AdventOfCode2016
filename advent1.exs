@@ -8,6 +8,16 @@ defmodule DayOne do
     def sum({x,y}, {a,b}), do: {x+a, y+b}
 
     def manhattan_distance({x,y}), do: :erlang.abs(x) + :erlang.abs(y)
+
+    def path({x, y}, {a, y}) do
+      [_start | path_followed] = Stream.map(x..a, fn(p) -> {p,y} end) |> Enum.to_list
+      path_followed
+    end
+
+    def path({x, y}, {x, b}) do
+      [_start | path_followed] = Stream.map(y..b, fn(p) -> {x,p} end) |> Enum.to_list
+      path_followed
+    end
   end
 
   def walk(directions) do
@@ -55,8 +65,11 @@ defmodule DayOne do
 
   def step_until(instruction, state = %State{duplicate_location: :no_duplicate_location, visited_locations: visited_locations}) do
     %State{position: new_position, heading: new_direction} = step(instruction, state)
-    location_match = Enum.find([new_position], :no_duplicate_location, &MapSet.member?(visited_locations, &1))
-    new_visited_locations = MapSet.put(visited_locations, new_position)
+
+    blocks_path = Vector.path(state.position, new_position)
+    location_match = Enum.find(blocks_path, :no_duplicate_location, &MapSet.member?(visited_locations, &1))
+
+    new_visited_locations = MapSet.union(visited_locations, MapSet.new(blocks_path))
 
     new_state = %State{state |
       position: new_position,
@@ -116,5 +129,25 @@ defmodule DayOneTest do
 
   test "crossed path" do
     assert DayOne.second_visit_distance("R8, R4, R4, R8") == 4
+  end
+
+  test "vectro path between adjacent x positions" do
+    assert DayOne.Vector.path({0,0}, {1,0}) == [{1,0}]
+  end
+
+  test "vectro path between adjacent y positions" do
+    assert DayOne.Vector.path({0,0}, {0,1}) == [{0,1}]
+  end
+
+  test "vectro path between nonadjacent x positions" do
+    assert DayOne.Vector.path({0,0}, {2,0}) == [{1,0}, {2, 0}]
+  end
+
+  test "vectro path between nonadjacent x positions going negative" do
+    assert DayOne.Vector.path({2,0}, {0,0}) == [{1,0}, {0, 0}]
+  end
+
+  test "vectro path between nonadjacent y positions" do
+    assert DayOne.Vector.path({0,0}, {0,2}) == [{0,1}, {0, 2}]
   end
 end
