@@ -1,4 +1,43 @@
 defmodule DayOne do
+  defmodule State do
+    defstruct position: {0,0}, heading: {0,1}, visited_locations: MapSet.new([{0,0}]), duplicate_location: :no_duplicate_location
+    alias DayOne.Vector
+
+    def been_there(%State{visited_locations: visited_locations, duplicate_location: :no_duplicate_location}, positions) do
+      Enum.find(positions, :no_duplicate_location, &MapSet.member?(visited_locations, &1))
+    end
+
+    def change_heading(state = %State{heading: current_heading}, rotation) do
+      %State{ state |
+        heading: Vector.rotate(current_heading, rotation)
+      }
+    end
+
+    def go_one_block(next_block, state = %State{visited_locations: visited_locations, duplicate_location: :no_duplicate_location}) do
+      new_visited_locations = MapSet.put(visited_locations, next_block)
+
+      %State{state |
+        position: next_block,
+        duplicate_location: been_there(state, [next_block]),
+        visited_locations: new_visited_locations
+      }
+    end
+
+    def go_one_block(_, state = %State{}), do: state
+
+    def walk_path(state = %State{position: current_position, heading: heading}, move) do
+      final_position = heading |> Vector.scale(move) |> Vector.sum(current_position)
+      blocks_path = Vector.path(current_position , final_position)
+      Enum.reduce(blocks_path, state, &go_one_block/2)
+    end
+
+    def step( state = %State{}, {rotation, move}) do
+      state
+      |> change_heading(rotation)
+      |> walk_path(move)
+    end
+  end
+
   defmodule Vector do
     def rotate({x,y}, :right), do: {y, -x}
     def rotate({x,y}, :left), do: {-y, x}
@@ -47,14 +86,6 @@ defmodule DayOne do
   def comprehend_direction("R" <> distance), do: {:right, String.to_integer(distance)}
   def comprehend_direction("L" <> distance), do: {:left, String.to_integer(distance)}
 
-  defmodule State do
-    defstruct position: {0,0}, heading: {0,1}, visited_locations: MapSet.new([{0,0}]), duplicate_location: :no_duplicate_location
-
-    def been_there(%State{visited_locations: visited_locations}, positions) do
-      Enum.find(positions, :no_duplicate_location, &MapSet.member?(visited_locations, &1))
-    end
-  end
-
   def find_second_visit(understood_steps) do
     Enum.reduce_while(understood_steps, %State{}, &step_until/2)
   end
@@ -67,41 +98,16 @@ defmodule DayOne do
     Vector.manhattan_distance(position)
   end
 
-  def step_until(instruction, state = %State{duplicate_location: :no_duplicate_location, visited_locations: visited_locations}) do
-    %State{position: new_position, heading: new_direction} = step(instruction, state)
-
-    blocks_path = Vector.path(state.position, new_position)
-    location_match = State.been_there(state, blocks_path)
-    new_visited_locations = MapSet.union(visited_locations, MapSet.new(blocks_path))
-
-    new_state = %State{state |
-      position: new_position,
-      heading: new_direction,
-      visited_locations: new_visited_locations,
-      duplicate_location: location_match
-    }
-
-    {:cont, new_state}
+  def step_until(instruction, state = %State{duplicate_location: :no_duplicate_location}) do
+    {:cont, step(instruction, state)}
   end
 
-  def step_until(instruction, state = %State{duplicate_location: location}) do
-    new_state = %State{state | position: location }
+  def step_until(_, state = %State{}) do
     {:halt, state}
   end
 
-  def step({rotation, move}, state = %State{position: current_position, heading: current_heading}) do
-    changed_direction = Vector.rotate(current_heading, rotation)
-
-    %State{state |
-      position: changed_direction |> new_position(move, current_position),
-      heading: changed_direction
-    }
-  end
-
-  def new_position(direction, move, position) do
-    direction
-    |> Vector.scale(move)
-    |> Vector.sum(position)
+  def step(instruction, state = %State{}) do
+    state |> State.step(instruction)
   end
 end
 
