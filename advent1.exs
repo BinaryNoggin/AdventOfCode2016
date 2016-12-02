@@ -49,6 +49,10 @@ defmodule DayOne do
 
   defmodule State do
     defstruct position: {0,0}, heading: {0,1}, visited_locations: MapSet.new([{0,0}]), duplicate_location: :no_duplicate_location
+
+    def been_there(%State{visited_locations: visited_locations}, positions) do
+      Enum.find(positions, :no_duplicate_location, &MapSet.member?(visited_locations, &1))
+    end
   end
 
   def find_second_visit(understood_steps) do
@@ -67,8 +71,7 @@ defmodule DayOne do
     %State{position: new_position, heading: new_direction} = step(instruction, state)
 
     blocks_path = Vector.path(state.position, new_position)
-    location_match = Enum.find(blocks_path, :no_duplicate_location, &MapSet.member?(visited_locations, &1))
-
+    location_match = State.been_there(state, blocks_path)
     new_visited_locations = MapSet.union(visited_locations, MapSet.new(blocks_path))
 
     new_state = %State{state |
@@ -149,5 +152,13 @@ defmodule DayOneTest do
 
   test "vectro path between nonadjacent y positions" do
     assert DayOne.Vector.path({0,0}, {0,2}) == [{0,1}, {0, 2}]
+  end
+
+  test "non-matching visited paths" do
+    assert DayOne.State.been_there(%DayOne.State{}, [{0,1}]) == :no_duplicate_location
+  end
+
+  test "matching visited paths" do
+    assert DayOne.State.been_there(%DayOne.State{}, [{0,1}, {0,0}]) == {0,0}
   end
 end
